@@ -101,6 +101,19 @@ int main() {
     int switchWins = 0, switchLosses = 0, stayWins = 0, stayLosses = 0;
 
     while (playAgain) {
+        cout << R"(
+            ============================
+                MONTY HALL - 3 DOORS
+            ============================
+         
+                 [1]     [2]     [3]
+               +-----+ +-----+ +-----+
+               | ??? | | ??? | | ??? |
+               +-----+ +-----+ +-----+
+         
+             - One door hides a CAR 
+             - The other two hide GOATS 
+             )" << endl;
         int prizeDoor = rand() % 3;
         int userChoice = getUserChoice();
 
