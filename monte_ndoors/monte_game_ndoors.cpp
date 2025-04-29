@@ -1,21 +1,47 @@
+/*
+   ============================
+       MONTY HALL - n DOORS
+   ============================
+
+   [1]   [2]    [3]    [4]    [5]    [6]    [7]    [8]    [9]        [n]
+  +----+ +----+ +----+ +----+ +----+ +----+ +----+ +----+ +----+     +----+
+  | ???| | ???| | ???| | ???| | ???| | ???| | ???| | ???| | ???| ... | ???|
+  +----+ +----+ +----+ +----+ +----+ +----+ +----+ +----+ +----+     +----+
+
+    - One door hides a CAR 🚗
+    - The other nine hide GOATS 🐐
+
+    Game Flow:
+    -------------------------------
+    1. Player picks a door
+    2. Monty opens n-2 goat doors
+    3. Two doors remain closed (player's and one more)
+    4. Player decides to switch or stay
+    5. Reveal prize and update stats
+    -------------------------------
+
+    Probabilities:
+    - Stay:    1/n
+    - Switch:  (n-1)/n
+*/
+
 #include <iostream>
 #include <vector>
-#include <algorithm> // For random_shuffle
+#include <algorithm>
 #include <cstdlib>
 #include <ctime>
 #include <cctype>
-
 using namespace std;
 
-int getUserChoice(int numberOfDoors) {
+int getUserChoice(int numDoors) {
     int choice;
     while (true) {
-        cout << "Pick a door (1 to " << numberOfDoors << "): ";
+        cout << "\nPick a door (1 to " << numDoors << "): ";
         cin >> choice;
-        if (choice >= 1 && choice <= numberOfDoors) break;
-        cout << "Invalid input. Please choose between 1 and " << numberOfDoors << ".\n";
+        if (choice >= 1 && choice <= numDoors) break;
+        cout << "Invalid input. Please choose a valid door.\n";
     }
-    return choice - 1; // Convert to 0-based index
+    return choice - 1;
 }
 
 bool getYesOrNo(const string& prompt) {
@@ -30,87 +56,108 @@ bool getYesOrNo(const string& prompt) {
     }
 }
 
-void displayDoors(int numberOfDoors, const vector<int>& openedDoors, bool revealAll = false, int prizeDoor = -1) {
-    cout << "\nDoors:\n";
-    for (int i = 0; i < numberOfDoors; ++i) {
-        cout << "[" << (i + 1) << "] ";
-        bool isOpened = find(openedDoors.begin(), openedDoors.end(), i) != openedDoors.end();
-        if (revealAll) {
-            if (i == prizeDoor)
-                cout << "(C) ";
-            else
-                cout << "(G) ";
-        } else if (isOpened) {
-            cout << "(G) ";
+void printIntroDiagram(int numDoors) {
+    cout << "\n   ============================\n";
+    cout << "       MONTY HALL - " << numDoors << " DOORS\n";
+    cout << "   ============================\n\n";
+
+    // Door numbers
+    cout << "    ";
+    for (int i = 0; i < numDoors; ++i)
+        cout << "[" << (i + 1) << "]     ";
+    cout << "\n";
+
+    // Top borders
+    cout << "   ";
+    for (int i = 0; i < numDoors; ++i)
+        cout << "+-----+ ";
+    cout << "\n";
+
+    // Middle "???" row
+    cout << "   ";
+    for (int i = 0; i < numDoors; ++i)
+        cout << "| ??? | ";
+    cout << "\n";
+
+    // Bottom borders
+    cout << "   ";
+    for (int i = 0; i < numDoors; ++i)
+        cout << "+-----+ ";
+    cout << "\n";
+
+    cout << "\n   - One door hides a CAR\n";
+    cout << "   - The others hide GOATS\n";
+    cout << "   - Monty will reveal all goat doors except one\n";
+}
+
+void displayDoors(int numDoors, vector<int> revealedGoats = {}, int userPick = -1, int prize = -1, bool final = false) {
+    cout << "\n   Doors:\n   ";
+    for (int i = 0; i < numDoors; ++i)
+        cout << "[" << (i + 1) << "]     ";
+    cout << "\n   ";
+    for (int i = 0; i < numDoors; ++i)
+        cout << "+-----+ ";
+    cout << "\n   ";
+    for (int i = 0; i < numDoors; ++i) {
+        if (final) {
+            if (i == prize) cout << "| CAR | ";
+            else cout << "|GOAT | ";
+        } else if (find(revealedGoats.begin(), revealedGoats.end(), i) != revealedGoats.end()) {
+            cout << "|GOAT | ";
         } else {
-            cout << "[ ] ";
+            cout << "| ??? | ";
         }
     }
+    cout << "\n   ";
+    for (int i = 0; i < numDoors; ++i)
+        cout << "+-----+ ";
     cout << "\n";
 }
 
 int main() {
     srand(static_cast<unsigned int>(time(0)));
-    cout << "=== Welcome to the Monty Hall Game Show! ===\n\n";
 
-    int numberOfDoors;
+    int numDoors;
     cout << "Enter number of doors (minimum 3): ";
-    cin >> numberOfDoors;
-    if (numberOfDoors < 3) numberOfDoors = 3;
+    cin >> numDoors;
+    if (numDoors < 3) numDoors = 3;
+
+    printIntroDiagram(numDoors);
 
     bool playAgain = true;
-
-    // Tracking variables
     int gamesPlayed = 0;
-    int switchWins = 0;
-    int switchLosses = 0;
-    int stayWins = 0;
-    int stayLosses = 0;
+    int switchWins = 0, switchLosses = 0, stayWins = 0, stayLosses = 0;
 
     while (playAgain) {
-        int prizeDoor = rand() % numberOfDoors;
-        int userChoice = getUserChoice(numberOfDoors);
+        int prizeDoor = rand() % numDoors;
+        int userChoice = getUserChoice(numDoors);
 
-        cout << "\nHere are the doors before Monty opens any:\n";
-        displayDoors(numberOfDoors, {});
-
-        // Step 1: Build list of doors Monty can open (not user choice, not prize)
-        vector<int> openableGoatDoors;
-        for (int i = 0; i < numberOfDoors; ++i) {
-            if (i != userChoice && i != prizeDoor) {
-                openableGoatDoors.push_back(i);
-            }
+        // Monty reveals all goat doors except one
+        vector<int> revealCandidates;
+        for (int i = 0; i < numDoors; ++i) {
+            if (i != userChoice && i != prizeDoor)
+                revealCandidates.push_back(i);
         }
 
-        // Step 2: Shuffle and pick (numberOfDoors - 2) doors to open
-        random_shuffle(openableGoatDoors.begin(), openableGoatDoors.end());
+        random_shuffle(revealCandidates.begin(), revealCandidates.end());
 
-        vector<int> montyOpens;
-        for (int i = 0; i < numberOfDoors - 2; ++i) {
-            montyOpens.push_back(openableGoatDoors[i]);
+        vector<int> revealedGoats;
+        for (int i = 0; i < numDoors - 2; ++i)
+            revealedGoats.push_back(revealCandidates[i]);
+
+        cout << "\nMonty opens " << revealedGoats.size() << " goat doors:\n";
+        displayDoors(numDoors, revealedGoats, userChoice);
+
+        // Get remaining unopened doors
+        vector<int> unopened;
+        for (int i = 0; i < numDoors; ++i) {
+            if (find(revealedGoats.begin(), revealedGoats.end(), i) == revealedGoats.end())
+                unopened.push_back(i);
         }
 
-        // Step 3: Display which doors Monty opens
-        cout << "\nMonty opens " << montyOpens.size() << " doors and reveals goats:\n";
-        for (int door : montyOpens) {
-            cout << "Door " << (door + 1) << " has a goat.\n";
-        }
-        cout << "\n";
-
-        displayDoors(numberOfDoors, montyOpens);
-
-        // Step 4: Build list of unopened doors
-        vector<int> unopenedDoors;
-        for (int i = 0; i < numberOfDoors; ++i) {
-            if (find(montyOpens.begin(), montyOpens.end(), i) == montyOpens.end()) {
-                unopenedDoors.push_back(i);
-            }
-        }
-
-        // Step 5: Ask if user wants to switch
         bool switchChoice = getYesOrNo("Do you want to switch your choice?");
         if (switchChoice) {
-            for (int door : unopenedDoors) {
+            for (int door : unopened) {
                 if (door != userChoice) {
                     userChoice = door;
                     break;
@@ -118,31 +165,22 @@ int main() {
             }
         }
 
-        cout << "\nYour final choice is door " << (userChoice + 1) << ".\n";
-        displayDoors(numberOfDoors, {}, true, prizeDoor);
+        cout << "\nFinal reveal:\n";
+        displayDoors(numDoors, {}, userChoice, prizeDoor, true);
 
         if (userChoice == prizeDoor) {
-            cout << ":) Congratulations! You won a CAR!\n";
-            if (switchChoice) {
-                switchWins++;
-            } else {
-                stayWins++;
-            }
+            cout << "\n:) You WON the car!\n";
+            if (switchChoice) switchWins++; else stayWins++;
         } else {
-            cout << ":( Sorry, you got a goat. The car was behind door " << (prizeDoor + 1) << ".\n";
-            if (switchChoice) {
-                switchLosses++;
-            } else {
-                stayLosses++;
-            }
+            cout << "\n:(You got a goat. The car was behind door " << (prizeDoor + 1) << ".\n";
+            if (switchChoice) switchLosses++; else stayLosses++;
         }
 
         gamesPlayed++;
         playAgain = getYesOrNo("\nDo you want to play again?");
-        cout << "--------------------------------------\n\n";
     }
 
-    // Summary Report
+    // Summary
     cout << "\n=== Game Summary ===\n";
     cout << "Total games played: " << gamesPlayed << "\n";
     cout << "Switched and won: " << switchWins << "\n";
@@ -150,18 +188,5 @@ int main() {
     cout << "Stayed and won: " << stayWins << "\n";
     cout << "Stayed and lost: " << stayLosses << "\n";
 
-    if ((switchWins + switchLosses) > 0) {
-        cout << "Switch Win Rate: " << (switchWins * 100.0 / (switchWins + switchLosses)) << "%\n";
-    } else {
-        cout << "Switch Win Rate: N/A\n";
-    }
-    if ((stayWins + stayLosses) > 0) {
-        cout << "Stay Win Rate: " << (stayWins * 100.0 / (stayWins + stayLosses)) << "%\n";
-    } else {
-        cout << "Stay Win Rate: N/A\n";
-    }
-    cout << "====================\n";
-
-    cout << "Thanks for playing the Monty Hall Game. Goodbye!\n";
     return 0;
 }
